@@ -2,7 +2,7 @@ import setuptools
     
 setuptools.setup(
     name="aiotubes",
-    version="1.2",
+    version="1.3",
     license='MIT',
     author="sheldy",
     description="Asynchronous Youtube API",
