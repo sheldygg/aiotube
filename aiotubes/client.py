@@ -1,17 +1,13 @@
-import re
 import json
-from typing import Optional, Dict
 
-from io import BytesIO
+from typing import Dict, List, Optional
 from urllib.parse import urlencode
+
 from aiohttp import ClientSession
+
 from .constants import default_clients
-
-
-def extract_video_id(url: str) -> str:
-    pattern = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
-    result = re.search(pattern=pattern, string=url)
-    return result.group(1)
+from .extract import apply_descrambler, extract_video_id
+from .streams import Stream, StreamQuery
 
 
 class Client:
@@ -21,6 +17,7 @@ class Client:
         self.context = default_clients[client]["context"]
         self.base_url = "https://www.youtube.com/youtubei/v1"
         self._video_info: Optional[Dict] = None
+        self._fmt_streams: Optional[List[Stream]] = None
 
     @property
     def base_params(self) -> Dict:
@@ -49,15 +46,29 @@ class Client:
         self._video_info = result
         return result
 
-    async def streaming_data(self):
+    async def streaming_data(self) -> Dict:
         return (await self.video_info())["streamingData"]
+
+    async def fmt_streams(self) -> List[Stream]:
+        if self._fmt_streams:
+            return self._fmt_streams
+        self._fmt_streams = []
+        stream_manifest = apply_descrambler(await self.streaming_data())
+        for stream in stream_manifest:
+            video = Stream(**stream)
+            self._fmt_streams.append(video)
+        return self._fmt_streams
     
+    async def streams(self) -> StreamQuery:
+        return StreamQuery(await self.fmt_streams())
+
     @property
     async def length(self) -> int:
         """Get the video length in seconds."""
-        lenght = (await self.video_info()).get("videoDetails", {}).get("lengthSeconds")
-        return int(lenght)
-    
+        return int(
+            (await self.video_info()).get("videoDetails", {}).get("lengthSeconds")
+        )
+
     async def request(
         self,
         method: str = "GET",
@@ -76,13 +87,3 @@ class Client:
             ) as resp:
                 response: dict = await resp.json()
         return response
-
-    async def download_file(self, url: str) -> BytesIO:
-        chunk_size = 16384
-        io = BytesIO()
-        async with ClientSession() as session:
-            async with session.get(url) as response:
-                async for data in response.content.iter_chunked(chunk_size):
-                    io.write(data)
-        io.seek(0)
-        return io
