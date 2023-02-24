@@ -1,5 +1,6 @@
 import re
 import json
+from typing import Optional, Dict
 
 from io import BytesIO
 from urllib.parse import urlencode
@@ -19,16 +20,19 @@ class Client:
         self.api_key = default_clients[client]["api_key"]
         self.context = default_clients[client]["context"]
         self.base_url = "https://www.youtube.com/youtubei/v1"
+        self._video_info: Optional[Dict] = None
 
     @property
-    def base_params(self) -> dict:
+    def base_params(self) -> Dict:
         return {"key": self.api_key, "contentCheckOk": True, "racyCheckOk": True}
 
     @property
-    def base_data(self) -> dict:
+    def base_data(self) -> Dict:
         return {"context": self.context}
 
-    async def video_info(self) -> dict:
+    async def video_info(self) -> Dict:
+        if self._video_info:
+            return self._video_info
         endpoint = f"{self.base_url}/player"
         query = {
             "videoId": self.video_id,
@@ -42,11 +46,18 @@ class Client:
             headers=headers,
             data=self.base_data,
         )
+        self._video_info = result
         return result
 
     async def streaming_data(self):
         return (await self.video_info())["streamingData"]
-
+    
+    @property
+    async def length(self) -> int:
+        """Get the video length in seconds."""
+        lenght = (await self.video_info()).get("videoDetails", {}).get("lengthSeconds")
+        return int(lenght)
+    
     async def request(
         self,
         method: str = "GET",
