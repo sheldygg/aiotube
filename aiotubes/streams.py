@@ -41,6 +41,10 @@ class Stream(BaseModel, RequestClient):
     @property
     def abr(self):
         return self.itag_profile["abr"]
+    
+    @property
+    def resolution(self):
+        return self.itag_profile["resolution"]  
 
     @property
     def mime_type(self):
@@ -158,12 +162,72 @@ class StreamQuery:
     def __init__(self, fmt_streams: List[Stream]) -> None:
         self.fmt_streams = fmt_streams
 
-    def filter(self, only_audio=False, subtype=None):
+    def filter(
+        self,
+        fps=None,
+        res=None,
+        resolution=None,
+        mime_type=None,
+        type=None,
+        subtype=None,
+        file_extension=None,
+        abr=None,
+        bitrate=None,
+        video_codec=None,
+        audio_codec=None,
+        only_audio=None,
+        only_video=None,
+        progressive=None,
+        adaptive=None,
+        is_dash=None,
+        custom_filter_functions=None,
+    ):
         filters = []
+        if res or resolution:
+            filters.append(lambda s: s.resolution == (res or resolution))
+
+        if fps:
+            filters.append(lambda s: s.fps == fps)
+
+        if mime_type:
+            filters.append(lambda s: s.mime_type == mime_type)
+
+        if type:
+            filters.append(lambda s: s.type == type)
+
+        if subtype or file_extension:
+            filters.append(lambda s: s.subtype == (subtype or file_extension))
+
+        if abr or bitrate:
+            filters.append(lambda s: s.abr == (abr or bitrate))
+
+        if video_codec:
+            filters.append(lambda s: s.video_codec == video_codec)
+
+        if audio_codec:
+            filters.append(lambda s: s.audio_codec == audio_codec)
+
         if only_audio:
             filters.append(
                 lambda s: (s.includes_audio_track and not s.includes_video_track),
             )
+
+        if only_video:
+            filters.append(
+                lambda s: (s.includes_video_track and not s.includes_audio_track),
+            )
+
+        if progressive:
+            filters.append(lambda s: s.is_progressive)
+
+        if adaptive:
+            filters.append(lambda s: s.is_adaptive)
+
+        if custom_filter_functions:
+            filters.extend(custom_filter_functions)
+
+        if is_dash is not None:
+            filters.append(lambda s: s.is_dash == is_dash)
 
         return self._filter(filters)
 
@@ -201,3 +265,6 @@ class StreamQuery:
 
     def get_audio_only(self, subtype: str = "mp4") -> Optional[Stream]:
         return self.filter(only_audio=True, subtype=subtype).order_by("abr").last()
+    
+    def get_highest_resolution(self) -> Optional[Stream]:
+        return self.filter(progressive=True).order_by("resolution").last()
