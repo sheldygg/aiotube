@@ -49,8 +49,10 @@ class Client(RequestClient):
             return self._fmt_streams
         self._fmt_streams = []
         stream_manifest = apply_descrambler(await self.streaming_data())
+        video_title = await self.title
+        video_author = await self.author
         for stream in stream_manifest:
-            video = Stream(**stream)
+            video = Stream(title=video_title, author=video_author, **stream)
             self._fmt_streams.append(video)
         return self._fmt_streams
 
@@ -62,4 +64,16 @@ class Client(RequestClient):
         """Get the video length in seconds."""
         return int(
             (await self.video_info()).get("videoDetails", {}).get("lengthSeconds")
+        )
+
+    @property
+    async def title(self) -> int:
+        """Get the video title."""
+        return (await self.video_info()).get("videoDetails", {}).get("title")
+
+    @property
+    async def author(self) -> int:
+        """Get the video author."""
+        return (
+            (await self.video_info()).get("videoDetails", {}).get("author", "unknown")
         )

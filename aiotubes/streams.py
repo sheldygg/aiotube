@@ -1,15 +1,20 @@
+import os
+
 from datetime import datetime
 from io import BytesIO
 from typing import Callable, List, Optional
 from aiohttp import ClientSession
-from aiohttp.client_exceptions import ClientConnectionError, ServerTimeoutError
 from pydantic import BaseModel, HttpUrl
 
 from .request import RequestClient
 from .extract import mime_type_codec
 from .itags import get_format_profile
+from .helpers import target_directory, safe_filename
+
 
 class Stream(BaseModel, RequestClient):
+    title: str
+    author: str
     url: HttpUrl
     itag: int
     mimeType: str
@@ -38,6 +43,11 @@ class Stream(BaseModel, RequestClient):
         return self.itag_profile["abr"]
 
     @property
+    def mime_type(self):
+        mime_types, codecs = mime_type_codec(self.mimeType)
+        return mime_types
+
+    @property
     def codecs(self):
         mime_type, codecs = mime_type_codec(self.mimeType)
         return codecs
@@ -48,7 +58,7 @@ class Stream(BaseModel, RequestClient):
 
     @property
     def subtype(self):
-        return self.mimeType.split("/")[1]
+        return self.mime_type.split("/")[1]
 
     @property
     def is_adaptive(self) -> bool:
@@ -94,34 +104,54 @@ class Stream(BaseModel, RequestClient):
         while downloaded < file_size:
             stop_pos = min(downloaded + default_range_size, file_size) - 1
             range_header = f"bytes={downloaded}-{stop_pos}"
-            while True:
-                try:
-                    async with ClientSession() as session:
-                        async with session.get(url=self.url, headers={"Range": range_header}) as resp:
-                            headers = resp.headers
-                            chunk = await resp.read()
-                except ServerTimeoutError:
-                    pass
-                else:
-                    break
+            async with ClientSession() as session:
+                async with session.get(
+                    url=self.url, headers={"Range": range_header}
+                ) as resp:
+                    headers = resp.headers
+                    chunk = await resp.read()
             if file_size == default_range_size:
                 content_range = headers.get("Content-Range")
                 file_size = int(content_range.split("/")[1])
-            while True:
-                if not chunk:
-                    break
-                downloaded += len(chunk)
-                yield chunk
-        return  # pylint: disable=R1711
-            
-    async def download(self) -> None:
-        bytes_remaining = await self.filesize
-        file_path = "123.mp3"
-        with BytesIO() as fh:
+            downloaded += len(chunk)
+            yield chunk
+
+    async def download_buffer(self) -> BytesIO:
+        io = BytesIO()
+        async for chunk in self._download():
+            io.write(chunk)
+        io.seek(0)
+        return io
+
+    async def download_filepath(self, filename: str = None, output_path: str = None):
+        file_path = self.get_file_path(
+            filename=filename,
+            output_path=output_path,
+        )
+        with open(file_path, "wb") as file:
             async for chunk in self._download():
-                bytes_remaining -= len(chunk)
-                fh.write(chunk)                
+                file.write(chunk)
         return file_path
+
+    @property
+    def default_filename(self) -> str:
+        """Generate filename based on the video title.
+
+        :rtype: str
+        :returns:
+            An os file system compatible filename.
+        """
+        filename = safe_filename(self.title)
+        return f"{filename}.{self.subtype}"
+
+    def get_file_path(
+        self,
+        filename: Optional[str] = None,
+        output_path: Optional[str] = None,
+    ) -> str:
+        if not filename:
+            filename = self.default_filename
+        return os.path.join(target_directory(output_path), filename)
 
 
 class StreamQuery:
