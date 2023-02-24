@@ -3,7 +3,7 @@ import setuptools
     
     
 setuptools.setup(
-    name="aiotube",
+    name="aiotubes",
     version="1",
     license='MIT',
     author="sheldy",
