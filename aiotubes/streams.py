@@ -2,13 +2,14 @@ from datetime import datetime
 from io import BytesIO
 from typing import Callable, List, Optional
 from aiohttp import ClientSession
+from aiohttp.client_exceptions import ClientConnectionError, ServerTimeoutError
 from pydantic import BaseModel, HttpUrl
 
+from .request import RequestClient
 from .extract import mime_type_codec
 from .itags import get_format_profile
 
-
-class Stream(BaseModel):
+class Stream(BaseModel, RequestClient):
     url: HttpUrl
     itag: int
     mimeType: str
@@ -80,19 +81,47 @@ class Stream(BaseModel):
         :rtype: bool
         """
         return self.is_progressive or self.type == "video"
-    
-    async def download_buffer(self, buffer: BytesIO = None) -> BytesIO:
-        chunk_size = 16384
-        if buffer:
-            io = buffer
-        else:
-            io = BytesIO()
-        async with ClientSession() as session:
-            async with session.get(self.url) as response:
-                async for data in response.content.iter_chunked(chunk_size):
-                    io.write(data)
-        io.seek(0)
-        return io
+
+    @property
+    async def filesize(self) -> int:
+        response = await self.request(method="HEAD", url=self.url)
+        return int(response.get("headers", {}).get("Content-Length"))
+
+    async def _download(self):
+        default_range_size = 9437184
+        file_size: int = default_range_size  # fake filesize to start
+        downloaded = 0
+        while downloaded < file_size:
+            stop_pos = min(downloaded + default_range_size, file_size) - 1
+            range_header = f"bytes={downloaded}-{stop_pos}"
+            while True:
+                try:
+                    async with ClientSession() as session:
+                        async with session.get(url=self.url, headers={"Range": range_header}) as resp:
+                            headers = resp.headers
+                            chunk = await resp.read()
+                except ServerTimeoutError:
+                    pass
+                else:
+                    break
+            if file_size == default_range_size:
+                content_range = headers.get("Content-Range")
+                file_size = int(content_range.split("/")[1])
+            while True:
+                if not chunk:
+                    break
+                downloaded += len(chunk)
+                yield chunk
+        return  # pylint: disable=R1711
+            
+    async def download(self) -> None:
+        bytes_remaining = await self.filesize
+        file_path = "123.mp3"
+        with BytesIO() as fh:
+            async for chunk in self._download():
+                bytes_remaining -= len(chunk)
+                fh.write(chunk)                
+        return file_path
 
 
 class StreamQuery:

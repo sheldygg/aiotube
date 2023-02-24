@@ -1,16 +1,11 @@
-import json
-
 from typing import Dict, List, Optional
-from urllib.parse import urlencode
-
-from aiohttp import ClientSession
-
+from .request import RequestClient
 from .constants import default_clients
 from .extract import apply_descrambler, extract_video_id
 from .streams import Stream, StreamQuery
 
 
-class Client:
+class Client(RequestClient):
     def __init__(self, url: str, client: str = "ANDROID") -> None:
         self.video_id = extract_video_id(url)
         self.api_key = default_clients[client]["api_key"]
@@ -43,8 +38,8 @@ class Client:
             headers=headers,
             data=self.base_data,
         )
-        self._video_info = result
-        return result
+        self._video_info = result.get("response")
+        return self._video_info
 
     async def streaming_data(self) -> Dict:
         return (await self.video_info())["streamingData"]
@@ -58,7 +53,7 @@ class Client:
             video = Stream(**stream)
             self._fmt_streams.append(video)
         return self._fmt_streams
-    
+
     async def streams(self) -> StreamQuery:
         return StreamQuery(await self.fmt_streams())
 
@@ -68,22 +63,3 @@ class Client:
         return int(
             (await self.video_info()).get("videoDetails", {}).get("lengthSeconds")
         )
-
-    async def request(
-        self,
-        method: str = "GET",
-        url: str = "",
-        headers: dict = None,
-        params: dict = None,
-        data: dict = None,
-    ) -> dict:
-        async with ClientSession() as session:
-            async with session.request(
-                method=method,
-                url=url,
-                headers=headers,
-                params=urlencode(params),
-                data=json.dumps(data),
-            ) as resp:
-                response: dict = await resp.json()
-        return response
