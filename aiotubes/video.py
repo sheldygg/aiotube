@@ -1,11 +1,11 @@
 from typing import Dict, List, Optional
 from .request import RequestClient
 from .constants import default_clients
-from .extract import apply_descrambler, extract_video_id
+from .extractors import apply_descrambler, extract_video_id
 from .streams import Stream, StreamQuery
 
 
-class Client(RequestClient):
+class Video(RequestClient):
     def __init__(self, url: str, client: str = "ANDROID") -> None:
         self.video_id = extract_video_id(url)
         self.api_key = default_clients[client]["api_key"]
@@ -59,21 +59,21 @@ class Client(RequestClient):
     async def streams(self) -> StreamQuery:
         return StreamQuery(await self.fmt_streams())
 
-    @property
     async def length(self) -> int:
         """Get the video length in seconds."""
         return int(
             (await self.video_info()).get("videoDetails", {}).get("lengthSeconds")
         )
 
-    @property
     async def title(self) -> int:
         """Get the video title."""
         return (await self.video_info()).get("videoDetails", {}).get("title")
 
-    @property
     async def author(self) -> int:
         """Get the video author."""
         return (
             (await self.video_info()).get("videoDetails", {}).get("author", "unknown")
         )
+
+    def __repr__(self):
+        return f"<aiotubes.video.Video object: videoId={self.video_id}>"

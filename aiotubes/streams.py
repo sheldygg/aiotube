@@ -2,12 +2,11 @@ import os
 
 from datetime import datetime
 from io import BytesIO
-from typing import Callable, List, Optional
-from aiohttp import ClientSession
+from typing import Callable, List, Optional, AsyncGenerator
 from pydantic import BaseModel, HttpUrl
 
 from .request import RequestClient
-from .extract import mime_type_codec
+from .extractors import mime_type_codec
 from .itags import get_format_profile
 from .helpers import target_directory, safe_filename
 
@@ -41,10 +40,10 @@ class Stream(BaseModel, RequestClient):
     @property
     def abr(self):
         return self.itag_profile["abr"]
-    
+
     @property
     def resolution(self):
-        return self.itag_profile["resolution"]  
+        return self.itag_profile["resolution"]
 
     @property
     def mime_type(self):
@@ -96,24 +95,22 @@ class Stream(BaseModel, RequestClient):
         """
         return self.is_progressive or self.type == "video"
 
-    @property
     async def filesize(self) -> int:
         response = await self.request(method="HEAD", url=self.url)
         return int(response.get("headers", {}).get("Content-Length"))
 
-    async def _download(self):
+    async def _download(self) -> AsyncGenerator[bytes, None]:
         default_range_size = 9437184
-        file_size: int = default_range_size  # fake filesize to start
+        file_size: int = default_range_size
         downloaded = 0
         while downloaded < file_size:
             stop_pos = min(downloaded + default_range_size, file_size) - 1
             range_header = f"bytes={downloaded}-{stop_pos}"
-            async with ClientSession() as session:
-                async with session.get(
-                    url=self.url, headers={"Range": range_header}
-                ) as resp:
-                    headers = resp.headers
-                    chunk = await resp.read()
+            request = await self.request(
+                method="GET", url=self.url, headers={"Range": range_header}
+            )
+            headers = request.get("headers")
+            chunk = request.get("response")
             if file_size == default_range_size:
                 content_range = headers.get("Content-Range")
                 file_size = int(content_range.split("/")[1])
@@ -265,6 +262,6 @@ class StreamQuery:
 
     def get_audio_only(self, subtype: str = "mp4") -> Optional[Stream]:
         return self.filter(only_audio=True, subtype=subtype).order_by("abr").last()
-    
+
     def get_highest_resolution(self) -> Optional[Stream]:
         return self.filter(progressive=True).order_by("resolution").last()

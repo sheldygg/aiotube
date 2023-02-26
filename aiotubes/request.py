@@ -17,13 +17,15 @@ class RequestClient:
         base_headers = {"User-Agent": "Mozilla/5.0", "accept-language": "en-US,en"}
         if headers:
             base_headers.update(headers)
+        if data:
+            data = json.dumps(data)
         async with ClientSession() as session:
             async with session.request(
                 method=method,
                 url=url,
                 headers=base_headers,
                 params=params,
-                data=json.dumps(data),
+                data=data,
             ) as resp:
                 headers = resp.headers
                 if headers.get("Content-Type") == "application/json; charset=UTF-8":
