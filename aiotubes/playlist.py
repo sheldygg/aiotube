@@ -1,10 +1,7 @@
-from typing import List, AsyncGenerator
+from typing import AsyncGenerator, List
 
-from .extractors import (
-    extract_playlist_id,
-    extract_playlist_info,
-    extract_video_id_from_playlist,
-)
+from .extractors import (extract_playlist_id, extract_playlist_info,
+                         extract_video_id_from_playlist)
 from .request import RequestClient
 from .video import Video
 

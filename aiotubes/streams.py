@@ -1,14 +1,14 @@
 import os
-
 from datetime import datetime
 from io import BytesIO
-from typing import Callable, List, Optional, AsyncGenerator
+from typing import AsyncGenerator, Callable, List, Optional
+
 from pydantic import BaseModel, HttpUrl
 
-from .request import RequestClient
 from .extractors import mime_type_codec
+from .helpers import safe_filename, target_directory
 from .itags import get_format_profile
-from .helpers import target_directory, safe_filename
+from .request import RequestClient
 
 
 class Stream(BaseModel, RequestClient):

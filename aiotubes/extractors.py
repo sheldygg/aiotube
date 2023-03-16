@@ -1,10 +1,60 @@
-import re
-import json
 import ast
-
+import json
+import re
 from typing import Dict, List, Tuple, Union
 from urllib.parse import parse_qs, urlparse
+
 from .exceptions import HTMLParseError, RegexMatchError
+
+
+def playability_status(watch_html: str):
+    """Return the playability status and status explanation of a video.
+
+    For example, a video may have a status of LOGIN_REQUIRED, and an explanation
+    of "This is a private video. Please sign in to verify that you may see it."
+
+    This explanation is what gets incorporated into the media player overlay.
+
+    :param str watch_html:
+        The html contents of the watch page.
+    :rtype: bool
+    :returns:
+        Playability status and reason of the video.
+    """
+    player_response = initial_player_response(watch_html)
+    status_dict = player_response.get("playabilityStatus", {})
+    if "liveStreamability" in status_dict:
+        return "LIVE_STREAM", "Video is a live stream."
+    if "status" in status_dict:
+        if "reason" in status_dict:
+            return status_dict["status"], [status_dict["reason"]]
+        if "messages" in status_dict:
+            return status_dict["status"], status_dict["messages"]
+    return None, [None]
+
+
+def initial_player_response(watch_html: str) -> str:
+    """Extract the ytInitialPlayerResponse json from the watch_html page.
+
+    This mostly contains metadata necessary for rendering the page on-load,
+    such as video information, copyright notices, etc.
+
+    @param watch_html: Html of the watch page
+    @return:
+    """
+    patterns = [
+        r"window\[['\"]ytInitialPlayerResponse['\"]]\s*=\s*",
+        r"ytInitialPlayerResponse\s*=\s*",
+    ]
+    for pattern in patterns:
+        try:
+            return parse_for_object(watch_html, pattern)
+        except HTMLParseError:
+            pass
+
+    raise RegexMatchError(
+        caller="initial_player_response", pattern="initial_player_response_pattern"
+    )
 
 
 def extract_video_id(url: str) -> str:
