@@ -13,13 +13,13 @@ class HttpMethod(Enum):
     POST = "POST"
     PUT = "PUT"
     DELETE = "DELETE"
+    HEAD = "HEAD"
 
 
 class RequestClient:
     def __init__(self, client: str):
         self.context = default_clients[client]["context"]
         self.api_key = default_clients[client]["api_key"]
-        self.base_headers = {"User-Agent": "Mozilla/5.0", "accept-language": "en-US,en"}
 
     @property
     def base_params(self) -> dict:
@@ -37,17 +37,18 @@ class RequestClient:
         params: dict = None,
         data: dict = None,
     ):
+        base_headers = {"User-Agent": "Mozilla/5.0", "accept-language": "en-US,en"}
         if params:
             params = urlencode(params)
         if headers:
-            self.base_headers.update(headers)
+            base_headers.update(headers)
         if data:
             data = json.dumps(data)
         async with ClientSession() as session:
             async with session.request(
                 method=method.value,
                 url=url,
-                headers=self.base_headers,
+                headers=base_headers,
                 params=params,
                 data=data,
             ) as response:

@@ -5,7 +5,7 @@ from typing import AsyncGenerator, Callable, List, Optional
 
 from pydantic import BaseModel, HttpUrl
 
-from .client import RequestClient
+from .client import RequestClient, HttpMethod
 from .extractors import mime_type_codec
 from .helpers import safe_filename, target_directory
 from .itags import get_format_profile
@@ -96,7 +96,7 @@ class Stream(BaseModel, RequestClient):
         return self.is_progressive or self.type == "video"
 
     async def filesize(self) -> int:
-        response = await self.request(method="HEAD", url=self.url)
+        response = await self.request(method=HttpMethod.HEAD, url=self.url)
         return int(response.get("headers", {}).get("Content-Length"))
 
     async def _download(self) -> AsyncGenerator[bytes, None]:
@@ -107,7 +107,7 @@ class Stream(BaseModel, RequestClient):
             stop_pos = min(downloaded + default_range_size, file_size) - 1
             range_header = f"bytes={downloaded}-{stop_pos}"
             request = await self.request(
-                method="GET", url=self.url, headers={"Range": range_header}
+                method=HttpMethod.GET, url=self.url, headers={"Range": range_header}
             )
             headers = request.get("headers")
             chunk = request.get("response")
