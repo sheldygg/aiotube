@@ -1,6 +1,6 @@
 # AIOTUBE
 
-**aiotube** Asynchronous Youtube API
+**aiotube** Asynchronous YouTube API
 
 
 ### Example
@@ -8,7 +8,7 @@
 ```python
 import asyncio
 
-from aiotubes import Video
+from aiotube import Video
 
 async def main():
     client = Video("https://www.youtube.com/watch?v=MZ-cvXEvYI8")
