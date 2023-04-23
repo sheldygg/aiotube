@@ -1,13 +1,14 @@
 from typing import AsyncGenerator, List
 
+from .client import HttpMethod, RequestClient
 from .extractors import (extract_playlist_id, extract_playlist_info,
                          extract_video_id_from_playlist)
-from .request import RequestClient
 from .video import Video
 
 
-class Playlist(RequestClient):
+class Playlist:
     def __init__(self, url: str) -> None:
+        self.client = RequestClient("ANDROID")
         self._input_url = url
         self._playlist_id = None
         self._html = None
@@ -28,7 +29,9 @@ class Playlist(RequestClient):
     async def playlist_html(self) -> str:
         if self._html:
             return self._html
-        request = await self.request(method="GET", url=self.playlist_url)
+        request = await self.client.request(
+            method=HttpMethod.GET, url=self.playlist_url
+        )
         self._html = request.get("response").decode("utf-8")
         return self._html
 

@@ -1,8 +1,8 @@
-from typing import Pattern, Union
+from re import Pattern
 
 
-class AiotubeError(Exception):
-    "Base Exception"
+class AiotubeError(BaseException):
+    """Base Exception"""
 
 
 class HTMLParseError(AiotubeError):
@@ -12,7 +12,7 @@ class HTMLParseError(AiotubeError):
 class RegexMatchError(AiotubeError):
     """Regex pattern did not return any matches."""
 
-    def __init__(self, caller: str, pattern: Union[str, Pattern]):
+    def __init__(self, caller: str, pattern: str | Pattern):
         """
         :param str caller:
             Calling function
@@ -41,13 +41,6 @@ class VideoUnavailable(AiotubeError):
 
 
 class MembersOnly(VideoUnavailable):
-    """Video is members-only.
-
-    YouTube has special videos that are only viewable to users who have
-    subscribed to a content creator.
-    ref: https://support.google.com/youtube/answer/7544492?hl=en
-    """
-
     def __init__(self, video_id: str):
         """
         :param str video_id:
@@ -103,19 +96,3 @@ class VideoPrivate(VideoUnavailable):
     @property
     def error_string(self):
         return f"{self.video_id} is a private video"
-
-
-class AgeRestrictedError(VideoUnavailable):
-    """Video is age restricted, and cannot be accessed without OAuth."""
-
-    def __init__(self, video_id: str):
-        """
-        :param str video_id:
-            A YouTube video identifier.
-        """
-        self.video_id = video_id
-        super().__init__(self.video_id)
-
-    @property
-    def error_string(self):
-        return f"{self.video_id} is age restricted, and can't be accessed without logging in."

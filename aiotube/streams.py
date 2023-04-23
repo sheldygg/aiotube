@@ -5,10 +5,10 @@ from typing import AsyncGenerator, Callable, List, Optional
 
 from pydantic import BaseModel, HttpUrl
 
+from .client import RequestClient
 from .extractors import mime_type_codec
 from .helpers import safe_filename, target_directory
 from .itags import get_format_profile
-from .request import RequestClient
 
 
 class Stream(BaseModel, RequestClient):
