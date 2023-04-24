@@ -5,6 +5,7 @@ from aiotube.exceptions import (LiveStreamError, MembersOnly,
 from aiotube.extractors import (apply_descrambler, extract_video_id,
                                 playability_status)
 from aiotube.streams import Stream, StreamQuery
+from aiotube.helpers import retry_if_none
 
 
 class Video:
@@ -43,6 +44,7 @@ class Video:
             self._video_info = response.get("response")
         return self._video_info
 
+    @retry_if_none(max_retries=5)
     async def streaming_data(self):
         await self.check_availability()
         data = await self.video_info()
