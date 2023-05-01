@@ -29,20 +29,20 @@ class Video:
         return self._html
 
     async def video_info(self):
-        if self._video_info is None:
-            endpoint = f"{self.base_url}/player"
-            query = {"videoId": self.video_id}
-            query.update(self.client.base_params)
-            headers = {"Content-Type": "application/json"}
-            response = await self.client.request(
-                method=HttpMethod.POST,
-                url=endpoint,
-                params=query,
-                headers=headers,
-                data=self.client.base_data,
-            )
-            self._video_info = response.get("response")
-        return self._video_info
+        endpoint = f"{self.base_url}/player"
+        query = {"videoId": self.video_id}
+        query.update(self.client.base_params)
+        data = self.client.base_data
+        data.update(
+            {"videoId": self.video_id}
+        )
+        response = await self.client.request(
+            method=HttpMethod.POST,
+            url=endpoint,
+            params=query,
+            data=data,
+        )
+        return response.get("response")
 
     @retry_if_none(max_retries=5)
     async def streaming_data(self):
@@ -50,8 +50,7 @@ class Video:
         data = await self.video_info()
         if "streamingData" in data:
             return data["streamingData"]
-        await self.bypass_age_gate()
-        return self._video_info
+        return await self.bypass_age_gate()
 
     async def fmt_streams(self):
         await self.check_availability()
@@ -82,7 +81,7 @@ class Video:
             headers=headers,
             data=self.client.base_data,
         )
-        self._video_info = response.get("response")
+        return response.get("response")
 
     async def title(self) -> str:
         """Get the video title."""
