@@ -8,7 +8,7 @@ def get_description():
 
 setuptools.setup(
     name="aiotubes",
-    version="3.2",
+    version="3.3",
     license='MIT',
     author="sheldy",
     description="Asynchronous Youtube API",
