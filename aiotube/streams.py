@@ -11,7 +11,7 @@ from .helpers import safe_filename, target_directory
 from .itags import get_format_profile
 
 
-class Stream(BaseModel, RequestClient):
+class Stream(BaseModel):
     title: str
     author: str
     url: HttpUrl
@@ -96,17 +96,19 @@ class Stream(BaseModel, RequestClient):
         return self.is_progressive or self.type == "video"
 
     async def filesize(self) -> int:
-        response = await self.request(method=HttpMethod.HEAD, url=self.url)
+        client = RequestClient("ANDROID")
+        response = await client.request(method=HttpMethod.HEAD, url=self.url)
         return int(response.get("headers", {}).get("Content-Length"))
 
     async def _download(self) -> AsyncGenerator[bytes, None]:
+        client = RequestClient("ANDROID")
         default_range_size = 9437184
         file_size: int = default_range_size
         downloaded = 0
         while downloaded < file_size:
             stop_pos = min(downloaded + default_range_size, file_size) - 1
             range_header = f"bytes={downloaded}-{stop_pos}"
-            request = await self.request(
+            request = await client.request(
                 method=HttpMethod.GET, url=self.url, headers={"Range": range_header}
             )
             headers = request.get("headers")
