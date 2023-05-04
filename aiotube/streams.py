@@ -14,6 +14,7 @@ from .itags import get_format_profile
 class Stream(BaseModel):
     title: str
     author: str
+    request_client: RequestClient
     url: HttpUrl
     itag: int
     mimeType: str
@@ -32,6 +33,9 @@ class Stream(BaseModel):
     audioSampleRate: Optional[str]
     audioChannels: Optional[int]
     is_otf: bool
+
+    class Config:
+        arbitrary_types_allowed = True
 
     @property
     def itag_profile(self):
@@ -96,19 +100,17 @@ class Stream(BaseModel):
         return self.is_progressive or self.type == "video"
 
     async def filesize(self) -> int:
-        client = RequestClient("ANDROID")
-        response = await client.request(method=HttpMethod.HEAD, url=self.url)
+        response = await self.request_client.request(method=HttpMethod.HEAD, url=self.url)
         return int(response.get("headers", {}).get("Content-Length"))
 
     async def _download(self) -> AsyncGenerator[bytes, None]:
-        client = RequestClient("ANDROID")
         default_range_size = 9437184
         file_size: int = default_range_size
         downloaded = 0
         while downloaded < file_size:
             stop_pos = min(downloaded + default_range_size, file_size) - 1
             range_header = f"bytes={downloaded}-{stop_pos}"
-            request = await client.request(
+            request = await self.request_client.request(
                 method=HttpMethod.GET, url=self.url, headers={"Range": range_header}
             )
             headers = request.get("headers")

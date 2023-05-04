@@ -61,7 +61,7 @@ class Video:
         video_title = await self.title()
         video_author = await self.author()
         for stream in stream_manifest:
-            video = Stream(title=video_title, author=video_author, **stream)
+            video = Stream(title=video_title, author=video_author, request_client=self.client, **stream)
             self._fmt_streams.append(video)
         return self._fmt_streams
 
