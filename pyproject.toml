@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aiotubes"
+dynamic = ["version"]
+description = "Asynchronous Youtube API"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "sheldy" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "aiohttp",
+    "pydantic",
+]
+
+[project.urls]
+Homepage = "https://github.com/sheldygg/aiotube"
+
+[tool.hatch.version]
+path = "aiotube/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/aiotube",
+]
