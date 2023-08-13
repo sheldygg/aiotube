@@ -115,20 +115,20 @@ def mime_type_codec(mime_type_codec: str) -> tuple[str, list[str]]:
 def apply_descrambler(stream_data: dict) -> list | None:
     if "url" in stream_data:
         return None
-    formats = []
-    if "formats" in stream_data.keys():
-        formats.extend(stream_data["formats"])
-    if "adaptiveFormats" in stream_data.keys():
-        formats.extend(stream_data["adaptiveFormats"])
-    for data in formats:
-        if "url" not in data:
+    _formats = []
+    if formats := stream_data.get("formats"):
+        _formats.extend(formats)
+    if avaptive_formats := stream_data.get("adaptiveFormats"):
+        _formats.extend(avaptive_formats)
+    for data in _formats:
+        if not data.get("url"):
             if "signatureCipher" in data:
                 cipher_url = parse_qs(data["signatureCipher"])
                 data["url"] = cipher_url["url"][0]
                 data["s"] = cipher_url["s"][0]
         data["is_otf"] = data.get("type") == "FORMAT_STREAM_TYPE_OTF"
 
-    return formats
+    return _formats
 
 
 def extract_playlist_id(url: str) -> str:

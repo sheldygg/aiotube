@@ -1,56 +1,43 @@
-from aiotube.client import HttpMethod, RequestClient
-from aiotube.exceptions import (LiveStreamError, MembersOnly,
-                                RecordingUnavailable, VideoPrivate,
-                                VideoUnavailable)
-from aiotube.extractors import (apply_descrambler, extract_video_id,
-                                playability_status)
-from aiotube.streams import Stream, StreamQuery
-from aiotube.helpers import retry_if_none
+from http import HTTPMethod
+
+from .request import RequestClient
+from .extractors import extract_video_id, playability_status, apply_descrambler
+from .exceptions import VideoPrivate, VideoUnavailable, LiveStreamError, MembersOnly, RecordingUnavailable
+from .streams import Stream, StreamQuery
 
 
 class Video:
-    def __init__(self, url: str):
-        self.video_id = extract_video_id(url)
-        self.base_url = "https://www.youtube.com/youtubei/v1"
+    def __init__(self, video_url: str):
+        self.request_client = RequestClient()
+        self.video_id = extract_video_id(video_url)
+        self.base_api_url = "https://www.youtube.com/youtubei/v1"
         self.watch_url = f"https://youtube.com/watch?v={self.video_id}"
-        self.client = RequestClient("ANDROID")
-        self._html = None
-        self._video_info = None
-        self._fmt_streams = None
-
-    def __repr__(self):
-        return f"<aiotube.video.Video object: videoId={self.video_id}>"
+        self._html: str | None = None
+        self._video_data: dict | None = None
+        self._fmt_streams: list | None = None
 
     async def html(self):
         if self._html is None:
-            self._html = (
-                await self.client.request(method=HttpMethod.GET, url=self.watch_url)
-            ).get("response")
+            self._html = (await self.request_client.request(
+                method=HTTPMethod.GET,
+                url=self.watch_url
+            ))["response"].decode()
         return self._html
 
     async def video_info(self):
-        endpoint = f"{self.base_url}/player"
-        query = {"videoId": self.video_id}
-        query.update(self.client.base_params)
-        data = self.client.base_data
-        data.update(
-            {"videoId": self.video_id}
-        )
-        response = await self.client.request(
-            method=HttpMethod.POST,
-            url=endpoint,
-            params=query,
-            data=data,
-        )
-        return response.get("response")
+        if self._video_data is None:
+            endpoint = f"{self.base_api_url}/player"
+            query = {"videoId": self.video_id}
+            data = {"videoId": self.video_id}
+            self._video_data = (await self.request_client.request(
+                method=HTTPMethod.POST, url=endpoint, params=query, data=data
+            ))["response"]
+        return self._video_data
 
-    @retry_if_none(max_retries=5)
     async def streaming_data(self):
-        await self.check_availability()
         data = await self.video_info()
-        if "streamingData" in data:
-            return data["streamingData"]
-        return await self.bypass_age_gate()
+        if streaming_data := data.get("streamingData"):
+            return streaming_data
 
     async def fmt_streams(self):
         await self.check_availability()
@@ -61,47 +48,16 @@ class Video:
         video_title = await self.title()
         video_author = await self.author()
         for stream in stream_manifest:
-            video = Stream(title=video_title, author=video_author, request_client=self.client, **stream)
-            self._fmt_streams.append(video)
+            self._fmt_streams.append(
+                Stream(title=video_title, author=video_author, request_client=self.request_client, **stream)
+            )
         return self._fmt_streams
 
-    async def streams(self):
+    async def streams(self) -> StreamQuery:
         return StreamQuery(await self.fmt_streams())
 
-    async def bypass_age_gate(self):
-        client = RequestClient("ANDROID_EMBED")
-        endpoint = f"{self.base_url}/player"
-        query = {"videoId": self.video_id}
-        query.update(self.client.base_params)
-        headers = {"Content-Type": "application/json"}
-        response = await client.request(
-            method=HttpMethod.POST,
-            url=endpoint,
-            params=query,
-            headers=headers,
-            data=self.client.base_data,
-        )
-        return response.get("response")
-
-    async def title(self) -> str:
-        """Get the video title."""
-        await self.check_availability()
-        return (await self.video_info()).get("videoDetails", {}).get("title")
-
-    async def author(self) -> str:
-        """Get the video author."""
-        return (
-            (await self.video_info()).get("videoDetails", {}).get("author", "unknown")
-        )
-
-    async def length(self) -> int:
-        """Get the video length in seconds."""
-        return int(
-            (await self.video_info()).get("videoDetails", {}).get("lengthSeconds")
-        )
-
     async def check_availability(self):
-        html = (await self.html()).decode()
+        html = await self.html()
         status, messages = playability_status(html)
         for reason in messages:
             if status == "UNPLAYABLE":
@@ -125,3 +81,20 @@ class Video:
                     raise VideoUnavailable(video_id=self.video_id)
             elif status == "LIVE_STREAM":
                 raise LiveStreamError(video_id=self.video_id)
+
+    async def title(self) -> str:
+        """Get the video title."""
+        await self.check_availability()
+        return (await self.video_info()).get("videoDetails", {}).get("title", "untitled")
+
+    async def author(self) -> str:
+        """Get the video author."""
+        return (
+            (await self.video_info()).get("videoDetails", {}).get("author", "unknown")
+        )
+
+    async def length(self) -> int:
+        """Get the video length in seconds."""
+        return int(
+            (await self.video_info()).get("videoDetails", {}).get("lengthSeconds", 0)
+        )

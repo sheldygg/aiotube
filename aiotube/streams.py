@@ -1,41 +1,46 @@
 import os
-from datetime import datetime
+
+from typing import AsyncGenerator, Callable
+from dataclasses import dataclass
 from io import BytesIO
-from typing import AsyncGenerator, Callable, List, Optional
+from http import HTTPMethod
 
-from pydantic import BaseModel, HttpUrl
-
-from .client import RequestClient, HttpMethod
-from .extractors import mime_type_codec
-from .helpers import safe_filename, target_directory
+from .request import RequestClient
 from .itags import get_format_profile
+from .helpers import safe_filename, target_directory
+from .extractors import mime_type_codec
+
+DEFAULT_RANGE_SIZE = 9437184
 
 
-class Stream(BaseModel):
+@dataclass
+class Stream:
     title: str
     author: str
     request_client: RequestClient
-    url: HttpUrl
+    url: str
     itag: int
     mimeType: str
     bitrate: int
-    width: Optional[int]
-    height: Optional[int]
-    lastModifed: Optional[datetime]
-    contentLength: Optional[str]
+    lastModified: int
     quality: str
-    fps: Optional[int]
-    qualityLabel: Optional[str]
     projectionType: str
-    averageBitrate: Optional[int]
-    audioQuality: Optional[str]
     approxDurationMs: str
-    audioSampleRate: Optional[str]
-    audioChannels: Optional[int]
     is_otf: bool
-
-    class Config:
-        arbitrary_types_allowed = True
+    highReplication: bool | None = None
+    loudnessDb: float | None = None
+    initRange: dict | None = None
+    indexRange: dict | None = None
+    colorInfo: dict | None = None
+    width: int | None = None
+    height: int | None = None
+    contentLength: str | None = None
+    fps: int | None = None
+    qualityLabel: str | None = None
+    averageBitrate: int | None = None
+    audioQuality: str | None = None
+    audioSampleRate: str | None = None
+    audioChannels: int | None = None
 
     @property
     def itag_profile(self):
@@ -69,55 +74,34 @@ class Stream(BaseModel):
 
     @property
     def is_adaptive(self) -> bool:
-        """Whether the stream is DASH.
-
-        :rtype: bool
-        """
         return bool(len(self.codecs) % 2)
 
     @property
     def is_progressive(self) -> bool:
-        """Whether the stream is progressive.
-
-        :rtype: bool
-        """
         return not self.is_adaptive
 
     @property
     def includes_audio_track(self) -> bool:
-        """Whether the stream only contains audio.
-
-        :rtype: bool
-        """
         return self.is_progressive or self.type == "audio"
 
     @property
     def includes_video_track(self) -> bool:
-        """Whether the stream only contains video.
-
-        :rtype: bool
-        """
         return self.is_progressive or self.type == "video"
 
     async def filesize(self) -> int:
-        response = await self.request_client.request(method=HttpMethod.HEAD, url=self.url)
-        return int(response.get("headers", {}).get("Content-Length"))
+        response = await self.request_client.request(method=HTTPMethod.HEAD, url=self.url)
+        return int(response["headers"].get("Content-Length"))
 
     async def _download(self) -> AsyncGenerator[bytes, None]:
-        default_range_size = 9437184
-        file_size: int = default_range_size
+        file_size = await self.filesize()
         downloaded = 0
         while downloaded < file_size:
-            stop_pos = min(downloaded + default_range_size, file_size) - 1
+            stop_pos = min(downloaded + DEFAULT_RANGE_SIZE, file_size) - 1
             range_header = f"bytes={downloaded}-{stop_pos}"
             request = await self.request_client.request(
-                method=HttpMethod.GET, url=self.url, headers={"Range": range_header}
+                method=HTTPMethod.GET, url=self.url, headers={"Range": range_header}
             )
-            headers = request.get("headers")
-            chunk = request.get("response")
-            if file_size == default_range_size:
-                content_range = headers.get("Content-Range")
-                file_size = int(content_range.split("/")[1])
+            chunk = request["response"]
             downloaded += len(chunk)
             yield chunk
 
@@ -140,19 +124,13 @@ class Stream(BaseModel):
 
     @property
     def default_filename(self) -> str:
-        """Generate filename based on the video title.
-
-        :rtype: str
-        :returns:
-            An os file system compatible filename.
-        """
         filename = safe_filename(self.title)
         return f"{filename}.{self.subtype}"
 
     def get_file_path(
         self,
-        filename: Optional[str] = None,
-        output_path: Optional[str] = None,
+        filename: str | None = None,
+        output_path: str | None = None,
     ) -> str:
         if not filename:
             filename = self.default_filename
@@ -160,7 +138,7 @@ class Stream(BaseModel):
 
 
 class StreamQuery:
-    def __init__(self, fmt_streams: List[Stream]) -> None:
+    def __init__(self, fmt_streams: list[Stream]):
         self.fmt_streams = fmt_streams
 
     def filter(
@@ -232,7 +210,7 @@ class StreamQuery:
 
         return self._filter(filters)
 
-    def _filter(self, filters: List[Callable]) -> "StreamQuery":
+    def _filter(self, filters: list[Callable]) -> "StreamQuery":
         fmt_streams = self.fmt_streams
         for filter_lambda in filters:
             fmt_streams = filter(filter_lambda, fmt_streams)
@@ -264,8 +242,8 @@ class StreamQuery:
         except IndexError:
             pass
 
-    def get_audio_only(self, subtype: str = "mp4") -> Optional[Stream]:
+    def get_audio_only(self, subtype: str = "mp4") -> Stream | None:
         return self.filter(only_audio=True, subtype=subtype).order_by("abr").last()
 
-    def get_highest_resolution(self) -> Optional[Stream]:
+    def get_highest_resolution(self) -> Stream | None:
         return self.filter(progressive=True).order_by("resolution").last()
