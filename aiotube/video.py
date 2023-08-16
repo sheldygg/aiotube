@@ -24,20 +24,26 @@ class Video:
             ))["response"].decode()
         return self._html
 
+    async def _player(self, request_client: RequestClient):
+        endpoint = f"{self.base_api_url}/player"
+        query = {"videoId": self.video_id}
+        data = query
+        return (await request_client.request(
+            method=HTTPMethod.POST, url=endpoint, params=query, data=data
+        ))["response"]
+
     async def video_info(self):
         if self._video_data is None:
-            endpoint = f"{self.base_api_url}/player"
-            query = {"videoId": self.video_id}
-            data = {"videoId": self.video_id}
-            self._video_data = (await self.request_client.request(
-                method=HTTPMethod.POST, url=endpoint, params=query, data=data
-            ))["response"]
+            self._video_data = await self._player(self.request_client)
         return self._video_data
 
     async def streaming_data(self):
         data = await self.video_info()
         if streaming_data := data.get("streamingData"):
             return streaming_data
+        else:
+            bypassed_data = await self.bypass_age_gate()
+            return bypassed_data["streamingData"]
 
     async def fmt_streams(self):
         await self.check_availability()
@@ -55,6 +61,11 @@ class Video:
 
     async def streams(self) -> StreamQuery:
         return StreamQuery(await self.fmt_streams())
+
+    async def bypass_age_gate(self):
+        request_client = RequestClient("android_embedded")
+        self._video_data = await self._player(request_client)
+        return self._video_data
 
     async def check_availability(self):
         html = await self.html()
