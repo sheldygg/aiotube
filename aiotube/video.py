@@ -98,3 +98,9 @@ class Video:
         return int(
             (await self.video_info()).get("videoDetails", {}).get("lengthSeconds", 0)
         )
+
+    async def thumbnail(self) -> str:
+        thumbnails = (await self.video_info()).get("videoDetails", {}).get("thumbnail", {}).get("thumbnails")
+        if thumbnails:
+            return thumbnails[-1]["url"]
+        return f"https://img.youtube.com/vi/{self.video_id}/maxresdefault.jpg"
