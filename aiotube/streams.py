@@ -42,6 +42,9 @@ class Stream:
     audioSampleRate: str | None = None
     audioChannels: int | None = None
 
+    def __init__(self, **kwargs):  # for unexcepted
+        self.__dict__.update(kwargs)
+
     @property
     def itag_profile(self):
         return get_format_profile(self.itag)
