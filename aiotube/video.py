@@ -33,6 +33,7 @@ class Video:
         ))["response"]
 
     async def video_info(self):
+        await self.check_availability()
         if self._video_data is None:
             self._video_data = await self._player(self.request_client)
         return self._video_data
@@ -62,14 +63,18 @@ class Video:
     async def streams(self) -> StreamQuery:
         return StreamQuery(await self.fmt_streams())
 
-    async def bypass_age_gate(self):
-        request_client = RequestClient("android_embedded")
-        self._video_data = await self._player(request_client)
-        return self._video_data
+    async def bypass_age_gate(self) -> dict:
+        for r_client in ("android_embedded", "ios"):
+            request_client = RequestClient(r_client)
+            video_data = await self._player(request_client)
+            if video_data.get("streamingData"):
+                self._video_data = video_data
+                return self._video_data
 
     async def check_availability(self):
         html = await self.html()
         status, messages = playability_status(html)
+        # print(messages)
         for reason in messages:
             if status == "UNPLAYABLE":
                 if reason == (
