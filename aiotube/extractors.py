@@ -65,7 +65,7 @@ def parse_for_object_from_startpoint(html, start_point):
             raise HTMLParseError("Could not parse object.")
 
 
-def parse_for_object(html, preceding_regex):
+def parse_for_object(html: str, preceding_regex: str):
     regex = re.compile(preceding_regex)
     result = regex.search(html)
     if not result:
