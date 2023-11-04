@@ -25,9 +25,9 @@ dependencies = [
 Homepage = "https://github.com/sheldygg/aiotube"
 
 [tool.hatch.version]
-path = "aiotube/__init__.py"
+path = "aiotubes/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/aiotube",
+    "/aiotubes",
 ]
